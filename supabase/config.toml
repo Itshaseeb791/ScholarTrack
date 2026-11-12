@@ -1,0 +1,10 @@
+project_id = "scholarship-tracker"
+
+[db]
+major_version = 17
+
+[auth]
+enable_signup = false
+
+[storage]
+file_size_limit = "20MiB"
