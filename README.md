@@ -332,3 +332,11 @@ Routes: `/universities`, `/programs`, `/scholarships` (each with `new`, `[id]`, 
 - Tests: `npm test` (unit), `node scripts/verify-phase5-live.mjs` (live Supabase, self-cleaning), `PWA_TEST_ORIGIN=http://localhost:3100 node scripts/verify-phase5-ui.mjs` (browser; needs `npm run build && npx next start -p 3100`).
 - **Migration:** `supabase/migrations/20261113000100_phase5_relationships.sql` (scholarship links to programs/universities, preferred/type, opening date, extra funding types) has been applied. Without it the app still works and hides those features.
 - Details: `docs/phase-5-audit.md`, `phase-5-implementation.md`, `phase-5-testing.md`, `phase-5-handoff.md`.
+
+## Phase 6 — Application tracking
+
+Routes: `/applications` (list, search, filters), `/applications/new`, `/applications/[id]` (requirements, scholarships, status history), `/applications/[id]/edit`; programs have an "Apply to this program" shortcut. Rules live in `src/lib/applications.ts`; writes in `src/lib/records/application-actions.ts`.
+
+- **Migration:** `supabase/migrations/20261114000100_phase6_applications.sql` has been applied. Without it the Applications pages show a setup notice and the dashboard keeps its Phase 5 behaviour.
+- Tests: `npm test`, `node scripts/verify-phase6-live.mjs` (live, self-cleaning, needs the migration), `PWA_TEST_ORIGIN=http://localhost:3100 node scripts/verify-phase6-ui.mjs`.
+- Details and current verification status: `docs/phase-6-*.md`.

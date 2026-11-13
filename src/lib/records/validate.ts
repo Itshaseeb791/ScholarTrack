@@ -1,4 +1,5 @@
 // Pure validation shared by every Server Action and the unit tests. No imports on purpose.
+import { STATUS_VALUES } from "../applications.ts";
 export type Input = Record<string, string | undefined>;
 export type Errors = Record<string, string>;
 export type Parsed<T> = { ok: true; values: T } | { ok: false; errors: Errors };
@@ -125,4 +126,33 @@ export function parseScholarship(input: Input, extras = false) {
       c.errors.opening_date = "Opening date must be on or before the deadline.";
   }
   return c.result(v);
+}
+
+// ---- Phase 6: applications ------------------------------------------------------------------------
+export function parseApplication(input: Input) {
+  const c = new Collector(input);
+  const program_id = clean(input.program_id);
+  if (!isUuid(program_id)) c.errors.program_id = "Choose a program.";
+  const { amount, currency } = c.amountWithCurrency("application_fee", "Application fee");
+  const status = c.choice("status", "Status", STATUS_VALUES) ?? "researching";
+  const v = {
+    program_id, status, application_deadline: c.date("application_deadline", "Deadline"),
+    portal_url: c.url("portal_url", "Application portal"), reference_number: c.text("reference_number", "Reference number", 100),
+    application_fee: amount, currency, intake: c.text("intake", "Intake", 100),
+    submission_date: c.date("submission_date", "Submission date"), decision_date: c.date("decision_date", "Decision date"),
+    expected_response_date: c.date("expected_response_date", "Expected response date"), notes: c.text("notes", "Notes", 5000),
+  };
+  if (v.submission_date && v.decision_date && v.decision_date < v.submission_date)
+    c.errors.decision_date = "Decision date cannot be before the submission date.";
+  return c.result(v);
+}
+
+export function parseRequirement(input: Input) {
+  const c = new Collector(input);
+  return c.result({ title: c.text("title", "Requirement", 300, true), notes: c.text("notes", "Notes", 2000), due_date: c.date("due_date", "Due date") });
+}
+
+export function parseStatusChange(input: Input) {
+  const c = new Collector(input);
+  return c.result({ status: c.choice("status", "Status", STATUS_VALUES, true), note: c.text("note", "Note", 1000) });
 }

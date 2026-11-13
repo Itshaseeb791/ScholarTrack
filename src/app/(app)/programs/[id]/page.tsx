@@ -9,6 +9,9 @@ import { BackLink, Deadline, Detail, ExtLink, degreeLabel, formatMoney, s } from
 import { requireOwner } from "@/lib/auth/session";
 import { deleteProgram } from "@/lib/records/actions";
 import { hasExtras } from "@/lib/records/queries";
+import { hasPhase6 } from "@/lib/records/application-queries";
+import { AddButton } from "@/components/records/parts";
+import { StatusPill } from "@/components/records/application-parts";
 import { isUuid } from "@/lib/records/validate";
 import { getTimezone, todayIn } from "@/lib/time";
 
@@ -25,6 +28,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!p) notFound();
   const today = todayIn(getTimezone());
   const extras = await hasExtras(supabase);
+  const phase6 = await hasPhase6(supabase);
+  const appRows = phase6 ? ((await supabase.from("application_overview").select("id,status,intake,effective_deadline").eq("program_id", id).order("created_at", { ascending: false }).limit(20)).data ?? []) : [];
   const [{ count: apps }, links] = await Promise.all([
     supabase.from("applications").select("id", { count: "exact", head: true }).eq("program_id", id),
     extras ? supabase.from("scholarship_programs").select("scholarships(id,name,application_deadline)").eq("program_id", id) : Promise.resolve({ data: [] }),
@@ -54,6 +59,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <Detail label="Admission & language requirements" wide>{s(p.requirements)}</Detail>
         </dl>
       </CardContent></Card>
+      {phase6 && (
+        <Card className="mt-6">
+          <CardHeader className="flex-row items-center justify-between"><h2 className="section-title">Applications <Pill tone="brand">{appRows.length}</Pill></h2><AddButton href={`/applications/new?program=${id}`}>Apply to this program</AddButton></CardHeader>
+          <CardContent>
+            {appRows.length === 0 ? <p className="help-text">No application yet. Start one to track status, requirements and scholarships.</p> : (
+              <ul className="divide-y">{appRows.map((a) => (
+                <li key={a.id}><Link href={`/applications/${a.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-primary"><span className="flex items-center gap-2 font-medium"><StatusPill status={a.status} />{a.intake ?? "Application"}</span><span className="text-sm"><Deadline date={a.effective_deadline} today={today} /></span></Link></li>
+              ))}</ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <Card className="mt-6"><CardHeader><h2 className="section-title">Linked scholarships</h2></CardHeader><CardContent>
         {schols.length === 0 ? <p className="help-text">{extras ? "No scholarships linked. Link one from the scholarship page." : "Scholarship linking becomes available after the Phase 5 database migration is applied."}</p> : (
           <ul className="divide-y">{schols.map((x) => (

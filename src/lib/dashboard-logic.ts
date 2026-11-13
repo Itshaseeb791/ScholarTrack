@@ -1,10 +1,13 @@
 // Pure dashboard calculations. Dates are YYYY-MM-DD calendar days; "today" comes from the caller (see time.ts).
 import { dateInZone, daysBetween, DEFAULT_TIMEZONE } from "./time";
+import { countByGroup, GROUPS, isPending } from "./applications";
 export type Row = Record<string, string | null>;
-export type Deadline = { id: string; title: string; date: string; source: "Program" | "Scholarship" | "Task" | "Event"; href: string };
+export type Deadline = { id: string; title: string; date: string; source: "Program" | "Scholarship" | "Application" | "Requirement" | "Task" | "Event"; href: string };
 
-export const IN_PROGRESS = ["researching", "preparing", "ready_to_apply"];
-export const SUBMITTED = ["submitted", "under_review", "interview", "accepted", "rejected"];
+// Definitions live in applications.ts (each status is in exactly one group).
+export const IN_PROGRESS: readonly string[] = GROUPS.in_progress;
+export const SUBMITTED: readonly string[] = GROUPS.submitted;
+export const DECISIONS: readonly string[] = GROUPS.decisions;
 export const UPCOMING_DAYS = 30;
 
 export const daysUntil = (date: string, today: string) => daysBetween(today, date);
@@ -13,10 +16,22 @@ export const urgency = (d: number) => (d < 0 ? "overdue" : d <= 3 ? "urgent" : "
 export const label = (s: string) => s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 export function buildDeadlines(
-  src: { programs: Row[]; scholarships: Row[]; tasks: Row[]; events: Row[] }, today: string, timeZone = DEFAULT_TIMEZONE,
+  src: { programs: Row[]; scholarships: Row[]; tasks: Row[]; events: Row[]; applications?: Row[]; requirements?: Row[]; coveredPrograms?: string[] }, today: string, timeZone = DEFAULT_TIMEZONE,
 ): Deadline[] {
   const out: Deadline[] = [];
-  for (const r of src.programs) if (r.application_deadline && r.application_deadline >= today)
+  // A program that has an application is tracked through that application (its own deadline override, status and
+  // checklist), so its general program deadline is not listed a second time.
+  const covered = new Set(src.coveredPrograms ?? []);
+  // Only applications still being prepared have an actionable deadline; submitted/decided/withdrawn ones are closed.
+  const pendingApps = new Set<string>();
+  for (const r of src.applications ?? []) if (isPending(r.status ?? "")) {
+    pendingApps.add(r.id!);
+    if (r.effective_deadline && r.effective_deadline >= today)
+      out.push({ id: "a" + r.id, title: `${r.university_name} · ${r.program_name}`, date: r.effective_deadline, source: "Application", href: "/applications/" + r.id });
+  }
+  for (const r of src.requirements ?? []) if (r.due_date && r.due_date >= today && pendingApps.has(r.application_id ?? ""))
+    out.push({ id: "r" + r.id, title: r.title!, date: r.due_date, source: "Requirement", href: "/applications/" + r.application_id });
+  for (const r of src.programs) if (r.application_deadline && r.application_deadline >= today && !covered.has(r.id!))
     out.push({ id: "p" + r.id, title: r.name!, date: r.application_deadline, source: "Program", href: "/programs/" + r.id });
   for (const r of src.scholarships) if (r.application_deadline && r.application_deadline >= today)
     out.push({ id: "s" + r.id, title: r.name!, date: r.application_deadline, source: "Scholarship", href: "/scholarships/" + r.id });
@@ -31,11 +46,10 @@ export function buildDeadlines(
 }
 
 export function buildStats(applicationStatuses: string[], universities: number, scholarships: number, deadlines: Deadline[], today: string) {
+  const g = countByGroup(applicationStatuses);
   return {
     universities, scholarships,
-    applications: applicationStatuses.length,
-    inProgress: applicationStatuses.filter((s) => IN_PROGRESS.includes(s)).length,
-    submitted: applicationStatuses.filter((s) => SUBMITTED.includes(s)).length,
+    applications: g.total, inProgress: g.in_progress, submitted: g.submitted, decisions: g.decisions,
     upcoming: deadlines.filter((d) => { const n = daysUntil(d.date, today); return n >= 0 && n <= UPCOMING_DAYS; }).length,
   };
 }

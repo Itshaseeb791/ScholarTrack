@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import type { FormState } from "@/lib/records/actions";
 
 export type FieldDef = {
-  name: string; label: string; type?: "text" | "url" | "date" | "number" | "select" | "textarea" | "checkbox";
+  name: string; label: string; type?: "text" | "url" | "date" | "number" | "select" | "textarea" | "checkbox" | "checks";
   required?: boolean; placeholder?: string; hint?: string; maxLength?: number; wide?: boolean;
   options?: readonly (readonly [string, string])[]; empty?: string;
+  groups?: { label: string; options: readonly (readonly [string, string])[] }[]; // select with <optgroup>s
 };
 type Action = (prev: FormState, fd: FormData) => Promise<FormState>;
 
@@ -72,18 +73,28 @@ export function RecordForm({ fields, action, initial = {}, cancelHref, submitLab
           const common = { id, name: f.name, "aria-invalid": e ? true : undefined, "aria-describedby": e ? id + "-err" : f.hint ? id + "-hint" : undefined, disabled: pending };
           return (
             <div key={f.name} className={`space-y-1.5 ${f.wide || f.type === "textarea" ? "sm:col-span-2" : ""}`}>
-              {f.type === "checkbox" ? (
+              {f.type === "checks" ? (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium">{f.label}</legend>
+                  <div className="grid gap-1 sm:grid-cols-2">
+                    {f.options?.map(([val, label]) => (
+                      <label key={val} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name={f.name} value={val} disabled={pending} className="size-5 accent-[var(--primary)]" />{label}</label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : f.type === "checkbox" ? (
                 <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
                   <input type="checkbox" name={f.name} defaultChecked={v === "on" || v === "true"} disabled={pending} className="size-5 accent-[var(--primary)]" />{f.label}
                 </label>
               ) : (
                 <Label htmlFor={id}>{f.label}{f.required && <span className="text-danger" aria-hidden="true"> *</span>}{f.required && <span className="sr-only"> (required)</span>}</Label>
               )}
-              {f.type === "textarea" ? <Textarea {...common} defaultValue={v} placeholder={f.placeholder} maxLength={5000} rows={4} />
+              {f.type === "checks" ? null : f.type === "textarea" ? <Textarea {...common} defaultValue={v} placeholder={f.placeholder} maxLength={5000} rows={4} />
                 : f.type === "select" ? (
                   <select {...common} defaultValue={v} className={selectClass}>
                     <option value="">{f.empty ?? "Not set"}</option>
                     {f.options?.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                    {f.groups?.map((g) => <optgroup key={g.label} label={g.label}>{g.options.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup>)}
                   </select>
                 ) : f.type === "checkbox" ? null : (
                   <Input {...common} defaultValue={v} placeholder={f.placeholder} maxLength={f.maxLength ?? 500}

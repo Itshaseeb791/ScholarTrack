@@ -18,7 +18,8 @@ function load(file, mocks = {}) {
   return exports;
 }
 const time = load("lib/time.ts");
-const logic = load("lib/dashboard-logic.ts", { "./time": time });
+const applications = load("lib/applications.ts", { "./time.ts": time });
+const logic = load("lib/dashboard-logic.ts", { "./time": time, "./applications": applications });
 const today = "2026-11-13";
 
 test("deadlines merge all sources, sort ascending, keep overdue tasks only", () => {
@@ -43,7 +44,24 @@ test("countdown labels and urgency", () => {
 test("stats count statuses and 30-day window", () => {
   const dl = [{ date: "2026-11-13" }, { date: "2026-12-13" }, { date: "2026-12-14" }, { date: "2026-11-01" }];
   const s = logic.buildStats(["researching", "preparing", "submitted", "accepted", "withdrawn"], 2, 3, dl, today);
-  assert.deepEqual(s, { universities: 2, scholarships: 3, applications: 5, inProgress: 2, submitted: 2, upcoming: 2 });
+  // Phase 6 grouping: in progress / submitted / decisions are disjoint ("accepted" is a decision, not "submitted").
+  assert.deepEqual(s, { universities: 2, scholarships: 3, applications: 5, inProgress: 2, submitted: 1, decisions: 1, upcoming: 2 });
+});
+
+test("application deadlines: override wins, program deadline not duplicated, closed apps are not deadlines", () => {
+  const d = logic.buildDeadlines({
+    programs: [{ id: "p1", name: "Covered", application_deadline: "2026-12-01" }, { id: "p2", name: "Free", application_deadline: "2026-12-02" }],
+    scholarships: [], tasks: [], events: [],
+    applications: [
+      { id: "a1", status: "preparing", program_id: "p1", effective_deadline: "2026-11-20", university_name: "TUM", program_name: "MSc" },
+      { id: "a2", status: "submitted", program_id: "p3", effective_deadline: "2026-11-21", university_name: "ETH", program_name: "MSc" },
+      { id: "a3", status: "preparing", program_id: "p4", effective_deadline: null, university_name: "KTH", program_name: "MSc" },
+    ],
+    requirements: [{ id: "r1", title: "SOP", due_date: "2026-11-18", application_id: "a1" }, { id: "r2", title: "CV", due_date: "2026-11-19", application_id: "a2" }],
+    coveredPrograms: ["p1", "p3", "p4"],
+  }, today);
+  assert.deepEqual(d.map((x) => [x.source, x.title]), [["Requirement", "SOP"], ["Application", "TUM · MSc"], ["Program", "Free"]]);
+  assert.equal(d[1].href, "/applications/a1");
 });
 
 test("task groups", () => {
@@ -114,7 +132,10 @@ test("live dashboard loader reflects temporary rows", { skip: !(url && key && em
     assert.equal(after.recent[0].programs.universities.name, "ZZ Dashboard Test University");
     assert.equal(after.recent[0].application_scholarships[0].scholarships.name, "ZZ Test Scholarship");
     const titles = after.deadlines.map((x) => x.title);
-    assert.ok(titles.indexOf("ZZ overdue") < titles.indexOf("ZZ Test MSc") && titles.indexOf("ZZ Test MSc") < titles.indexOf("ZZ Test Scholarship"));
+    // With the Phase 6 migration the program deadline is listed through its application ("University · Program"); without it, as the program.
+    const at = (name) => titles.findIndex((x) => x.includes(name));
+    assert.ok(at("ZZ overdue") >= 0 && at("ZZ overdue") < at("ZZ Test MSc") && at("ZZ Test MSc") < at("ZZ Test Scholarship"));
+    assert.equal(titles.filter((x) => x.includes("ZZ Test MSc")).length, 1, "the program deadline is listed exactly once");
     assert.equal(after.tasks.overdue.length - before.tasks.overdue.length, 1);
     assert.equal(after.tasks.today.length - before.tasks.today.length, 1);
   } finally {

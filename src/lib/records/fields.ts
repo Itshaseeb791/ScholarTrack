@@ -1,5 +1,6 @@
 import type { FieldDef } from "@/components/records/record-form";
 import { CURRENCIES, DEGREE_TYPES, FUNDING_TYPES_BASE, FUNDING_TYPES_EXTRA, UNI_TYPES } from "./validate";
+import { STARTER_REQUIREMENTS, STATUSES } from "../applications";
 
 const currencyOptions = CURRENCIES.map((c) => [c, c] as const);
 
@@ -41,4 +42,22 @@ export const scholarshipFields = (extras: boolean): FieldDef[] => [
   { name: "application_deadline", label: "Application deadline", type: "date" },
   { name: "eligibility_requirements", label: "Eligibility, academic & language requirements, documents", type: "textarea", placeholder: "Who can apply, minimum GPA, IELTS, required documents…" },
   { name: "notes", label: "Notes", type: "textarea" },
+];
+
+export const applicationFields = (
+  groups: { label: string; options: readonly (readonly [string, string])[] }[], creating: boolean,
+): FieldDef[] => [
+  { name: "program_id", label: "Program", type: "select", required: true, empty: "Choose a program", wide: true, groups, hint: "Programs are grouped by university; the university follows from the program." },
+  { name: "status", label: "Status", type: "select", options: STATUSES.slice(1).map((x) => [x[0], x[1]] as const), empty: "Researching" },
+  { name: "intake", label: "Intake", placeholder: "e.g. Fall 2027" },
+  { name: "application_deadline", label: "Application deadline", type: "date", hint: "Optional. Overrides the program deadline for this application only." },
+  { name: "expected_response_date", label: "Expected response date", type: "date" },
+  { name: "portal_url", label: "Application portal URL", type: "url", placeholder: "https://…", wide: true },
+  { name: "reference_number", label: "Reference number", placeholder: "Portal or application ID" },
+  { name: "application_fee", label: "Application fee", type: "number", placeholder: "Leave empty if none or unknown" },
+  { name: "currency", label: "Currency", type: "select", options: currencyOptions, empty: "Not set" },
+  { name: "submission_date", label: "Submission date", type: "date", hint: "Filled in automatically when you mark it Submitted, if empty." },
+  { name: "decision_date", label: "Decision date", type: "date" },
+  ...(creating ? [{ name: "starter_requirements", label: "Starter checklist (optional, edit or delete later)", type: "checks", wide: true, options: STARTER_REQUIREMENTS.map((x) => [x, x] as const) } as FieldDef] : []),
+  { name: "notes", label: "Notes", type: "textarea", placeholder: "Anything specific to this application" },
 ];

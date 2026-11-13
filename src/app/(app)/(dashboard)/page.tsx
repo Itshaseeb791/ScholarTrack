@@ -4,13 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, IconTile, PageHeader, Pill, type Tone } from "@/components/ui-kit";
 import { requireOwner } from "@/lib/auth/session";
 import { loadDashboard } from "@/lib/dashboard";
-import { daysUntil, label, remaining, urgency, type Row } from "@/lib/dashboard-logic";
+import { daysUntil, remaining, urgency, type Row } from "@/lib/dashboard-logic";
+import { STATUSES, statusLabel } from "@/lib/applications";
+import { statusTone } from "@/components/records/application-parts";
 import { formatDateOnly } from "@/lib/time";
 
 const urgencyTone: Record<ReturnType<typeof urgency>, Tone> = { overdue: "danger", urgent: "warning", normal: "neutral" };
-const statusTone = (s: string): Tone =>
-  s === "accepted" ? "success" : s === "rejected" ? "danger" : ["submitted", "under_review", "interview"].includes(s) ? "info"
-    : s === "withdrawn" ? "neutral" : "brand";
 const dateChip = { overdue: "bg-danger-soft text-danger", urgent: "bg-warning-soft text-warning", normal: "bg-accent text-accent-foreground" };
 
 function SectionTitle({ icon: Icon, children, count }: { icon: typeof CalendarClock; children: React.ReactNode; count?: number }) {
@@ -49,7 +48,7 @@ function TaskList({ title, tone, tasks, today, empty }: { title: string; tone: T
 
 export default async function Page() {
   const { supabase } = await requireOwner();
-  const { today, stats, deadlines, tasks, recent } = await loadDashboard(supabase);
+  const { today, stats, deadlines, tasks, recent, statusCounts } = await loadDashboard(supabase);
   const cards = [
     { name: "Universities", value: stats.universities, icon: School, tone: "brand" },
     { name: "Scholarships", value: stats.scholarships, icon: GraduationCap, tone: "brand" },
@@ -109,6 +108,20 @@ export default async function Page() {
         </Card>
 
         <Card className="lg:col-span-2">
+          <CardHeader><SectionTitle icon={Files} count={stats.applications}>Application status</SectionTitle></CardHeader>
+          <CardContent>
+            {stats.applications === 0 ? <p className="help-text">No applications yet.</p> : (
+              <ul className="flex flex-wrap gap-2">
+                {STATUSES.filter(([v]) => statusCounts[v]).map(([v, l]) => (
+                  <li key={v}><Link href={`/applications?status=${v}`} className="inline-flex min-h-11 items-center gap-2 rounded-full border bg-card px-3.5 text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50">
+                    <Pill tone={statusTone(v)}>{l}</Pill><span className="font-semibold tabular-nums">{statusCounts[v]}</span></Link></li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
           <CardHeader><SectionTitle icon={Files}>Recent applications</SectionTitle></CardHeader>
           <CardContent>
             {recent.length === 0 ? <EmptyState icon={Inbox} title="No applications yet">Applications you start will show up here.</EmptyState> : (
@@ -116,17 +129,17 @@ export default async function Page() {
                 {recent.map((a) => {
                   const names = a.application_scholarships.map((s) => s.scholarships?.name).filter(Boolean);
                   return (
-                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-3">
+                    <li key={a.id}><Link href={`/applications/${a.id}`} className="-mx-2 flex min-h-14 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg px-2 py-3 outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-accent">
                       <span className="flex min-w-0 items-center gap-3">
                         <IconTile icon={School} className="size-10" />
                         <span className="min-w-0"><span className="block truncate text-sm font-medium">{a.programs?.universities?.name ?? "Unknown university"}</span>
                           <span className="block truncate text-xs text-muted-foreground">{a.programs?.name ?? "Unknown program"}{names.length > 0 && ` · ${names.join(", ")}`}</span></span>
                       </span>
                       <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Pill tone={statusTone(a.status)}>{label(a.status)}</Pill>
+                        <Pill tone={statusTone(a.status)}>{statusLabel(a.status)}</Pill>
                         {a.submission_date && <span>Submitted {formatDateOnly(a.submission_date)}</span>}
                       </span>
-                    </li>
+                    </Link></li>
                   );
                 })}
               </ul>
