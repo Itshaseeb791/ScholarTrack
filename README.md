@@ -1,6 +1,6 @@
 # Scholarship Tracker
 
-A personal scholarship and university application tracker. Phase 2 provides the PWA infrastructure and responsive shell. Phase 3 (Supabase auth, owner-only RLS, private storage) is verified live. Phase 4 adds the dashboard and navigation, and Phase 4.5 hardens logout, timezones, forms and navigation performance, and the emerald design refresh restyles the whole UI. Phase 5 has not started.
+A personal scholarship and university application tracker. Phase 2 provides the PWA infrastructure and responsive shell. Phase 3 (Supabase auth, owner-only RLS, private storage) is verified live. Phase 4 adds the dashboard and navigation, and Phase 4.5 hardens logout, timezones, forms and navigation performance, and the emerald design refresh restyles the whole UI. Phase 5 adds Universities, Programs and Scholarships management (see docs/phase-5-handoff.md); its database migration has been applied.
 
 ## Local development and production
 
@@ -323,3 +323,12 @@ Cold-load figures include the dashboard's real Supabase queries and vary run to 
 **Also fixed while testing.** A signed-in owner visiting /login is redirected by the proxy before rendering (the database owner check is kept to avoid redirect loops). Signing out marks the tab as leaving so its own BroadcastChannel message cannot trigger a second navigation. The browser tests now wait for dashboard content (not just the static shell) before signing a second tab out, because navigating away from an in-flight streamed page makes React report error #419 in the abandoned document. Test servers need to be started in the same shell call as the tests in this environment.
 
 **Visual check.** Login, dashboard, /more and a placeholder page were screenshotted headlessly at 390px and 1440px and reviewed. A physical iPhone has not been checked.
+
+
+## Phase 5 — Universities, Programs, Scholarships
+
+Routes: `/universities`, `/programs`, `/scholarships` (each with `new`, `[id]`, `[id]/edit`). Server Actions in `src/lib/records/actions.ts` call `requireOwner()` and validate on the server (`src/lib/records/validate.ts`); lists are URL-driven (`q`, filters, `sort`, `page`) and server-paginated.
+
+- Tests: `npm test` (unit), `node scripts/verify-phase5-live.mjs` (live Supabase, self-cleaning), `PWA_TEST_ORIGIN=http://localhost:3100 node scripts/verify-phase5-ui.mjs` (browser; needs `npm run build && npx next start -p 3100`).
+- **Migration:** `supabase/migrations/20261113000100_phase5_relationships.sql` (scholarship links to programs/universities, preferred/type, opening date, extra funding types) has been applied. Without it the app still works and hides those features.
+- Details: `docs/phase-5-audit.md`, `phase-5-implementation.md`, `phase-5-testing.md`, `phase-5-handoff.md`.

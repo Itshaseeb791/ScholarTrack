@@ -17,9 +17,9 @@ export function buildDeadlines(
 ): Deadline[] {
   const out: Deadline[] = [];
   for (const r of src.programs) if (r.application_deadline && r.application_deadline >= today)
-    out.push({ id: "p" + r.id, title: r.name!, date: r.application_deadline, source: "Program", href: "/universities" });
+    out.push({ id: "p" + r.id, title: r.name!, date: r.application_deadline, source: "Program", href: "/programs/" + r.id });
   for (const r of src.scholarships) if (r.application_deadline && r.application_deadline >= today)
-    out.push({ id: "s" + r.id, title: r.name!, date: r.application_deadline, source: "Scholarship", href: "/scholarships" });
+    out.push({ id: "s" + r.id, title: r.name!, date: r.application_deadline, source: "Scholarship", href: "/scholarships/" + r.id });
   // Open tasks stay listed once overdue; finished work is not a deadline.
   for (const r of src.tasks) if (r.due_date && ["todo", "in_progress"].includes(r.status ?? ""))
     out.push({ id: "t" + r.id, title: r.title!, date: r.due_date, source: "Task", href: "/tasks" });

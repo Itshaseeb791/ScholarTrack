@@ -29,8 +29,14 @@ function NavItem({ label, icon: Icon, active, mobile }: Item & { active: boolean
   );
 }
 
+// usePathname() is runtime data on dynamic routes ([id]); the layout wraps AppNav in Suspense with StaticNav
+// (same links, no active highlight) as the fallback so the shell still prerenders.
 export function AppNav({ mobile = false }: { mobile?: boolean }) {
-  const path = usePathname();
+  return <NavView path={usePathname()} mobile={mobile} />;
+}
+export function StaticNav({ mobile = false }: { mobile?: boolean }) { return <NavView path="" mobile={mobile} />; }
+
+function NavView({ path, mobile }: { path: string; mobile: boolean }) {
   const items = mobile ? mobileRoutes : routes;
   const match = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
   // On mobile, "More" owns every route that is not in the bottom bar.

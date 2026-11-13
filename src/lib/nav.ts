@@ -1,8 +1,9 @@
-import { CalendarDays, CheckSquare, Files, GraduationCap, LayoutDashboard, MoreHorizontal, School, Settings, FolderOpen } from "lucide-react";
+import { CalendarDays, CheckSquare, Files, GraduationCap, LayoutDashboard, MoreHorizontal, School, Settings, FolderOpen, BookOpen } from "lucide-react";
 
 export const routes = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/universities", label: "Universities", icon: School },
+  { href: "/programs", label: "Programs", icon: BookOpen },
   { href: "/scholarships", label: "Scholarships", icon: GraduationCap },
   { href: "/applications", label: "Applications", icon: Files },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },

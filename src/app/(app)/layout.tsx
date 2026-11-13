@@ -1,5 +1,6 @@
 import { GraduationCap } from "lucide-react";
-import { AppNav } from "@/components/app-nav";
+import { Suspense } from "react";
+import { AppNav, StaticNav } from "@/components/app-nav";
 import { SessionGuard } from "@/components/session-guard";
 import { SignOutButton } from "@/components/sign-out-button";
 
@@ -15,7 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="grid size-10 place-items-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"><GraduationCap className="size-6" aria-hidden="true" /></span>
           <div className="leading-tight"><p className="font-semibold tracking-tight text-white">ScholarTrack</p><p className="text-xs text-sidebar-foreground/80">Scholarship planner</p></div>
         </div>
-        <AppNav />
+        <Suspense fallback={<StaticNav />}><AppNav /></Suspense>
       </aside>
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 border-b bg-card/90 px-5 py-2 backdrop-blur sm:px-8 md:px-10">
@@ -27,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main id="main" className="mx-auto max-w-5xl px-5 py-6 sm:px-8 md:px-10 md:py-10">{children}</main>
       </div>
-      <AppNav mobile />
+      <Suspense fallback={<StaticNav mobile />}><AppNav mobile /></Suspense>
     </div>
   );
 }
