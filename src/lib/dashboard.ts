@@ -29,8 +29,10 @@ export async function loadDashboard(db: SupabaseClient) {
   ]);
   // Phase 6 data. These queries tolerate a missing migration (the view/table are then absent): the dashboard
   // simply falls back to program deadlines instead of failing.
-  const [pending, reqs] = await Promise.all([
+  const [pending, allDay, reqs] = await Promise.all([
     db.from("application_overview").select("id,program_id,status,program_name,university_name,effective_deadline").in("status", [...IN_PROGRESS]).limit(100),
+    // All-day events (Phase 7) use date-only columns; the query fails harmlessly before the migration.
+    db.from("events").select("id,title,all_day,start_date,end_date").eq("all_day", true).gte("start_date", today).order("start_date").limit(20),
     db.from("application_requirements").select("id,title,due_date,application_id").eq("is_complete", false).not("due_date", "is", null).gte("due_date", today).order("due_date").limit(50),
   ]);
   const failed = [uni, sch, apps, programs, scholarships, tasks, events, recent].find((r) => r.error);
@@ -39,7 +41,7 @@ export async function loadDashboard(db: SupabaseClient) {
   const taskRows = (tasks.data ?? []) as Row[];
   const deadlines = buildDeadlines({
     programs: (programs.data ?? []) as Row[], scholarships: (scholarships.data ?? []) as Row[],
-    tasks: taskRows, events: (events.data ?? []) as Row[],
+    tasks: taskRows, events: [...(events.data ?? []), ...(allDay.error ? [] : allDay.data ?? [])] as Row[],
     applications: pending.error ? [] : (pending.data ?? []) as Row[], requirements: reqs.error ? [] : (reqs.data ?? []) as Row[],
     // Only hide a program deadline when its application deadline is actually available (Phase 6 migration applied).
     coveredPrograms: pending.error ? [] : (apps.data ?? []).map((a) => a.program_id as string),

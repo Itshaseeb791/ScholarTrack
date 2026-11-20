@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GraduationCap, Pencil, School, Unlink, Link2 } from "lucide-react";
+import { Bell, GraduationCap, Pencil, School, Unlink, Link2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader, Pill } from "@/components/ui-kit";
@@ -10,6 +10,8 @@ import { BackLink, Deadline, Detail, ExtLink, formatMoney, fundingLabel, s } fro
 import { requireOwner } from "@/lib/auth/session";
 import { deleteScholarship, linkScholarship, unlinkScholarship } from "@/lib/records/actions";
 import { hasExtras, universityOptions } from "@/lib/records/queries";
+import { hasPhase7, remindersFor } from "@/lib/records/planning-queries";
+import { ReminderPanel } from "@/components/records/reminder-panel";
 import { isUuid } from "@/lib/records/validate";
 import { formatDateOnly, getTimezone, todayIn } from "@/lib/time";
 
@@ -37,6 +39,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const freeProgs = ((allPrograms.data ?? []) as unknown as { id: string; name: string; universities: { name: string } | null }[]).filter((p) => !programs.some((x) => x.id === p.id));
   const freeUnis = allUnis.filter((u) => !unis.some((x) => x.id === u.id));
   const money = formatMoney(r.funding_amount, r.currency);
+  const phase7 = await hasPhase7(supabase);
+  const reminders = phase7 ? await remindersFor(supabase, "scholarship", id, getTimezone()) : [];
 
   return (
     <>
@@ -61,6 +65,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <Detail label="Notes" wide>{s(r.notes)}</Detail>
         </dl>
       </CardContent></Card>
+
+      {phase7 && (
+        <Card className="mt-6">
+          <CardHeader><h2 className="section-title flex items-center gap-2"><Bell className="size-5 text-emerald" aria-hidden="true" />Reminders</h2></CardHeader>
+          <CardContent><ReminderPanel type="scholarship" sourceId={id} reminders={reminders} tz={getTimezone()} hasDate={!!r.application_deadline} /></CardContent>
+        </Card>
+      )}
 
       <Card className="mt-6">
         <CardHeader><h2 className="section-title">Related programs &amp; universities</h2></CardHeader>

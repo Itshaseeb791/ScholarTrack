@@ -1,5 +1,9 @@
 // Pure validation shared by every Server Action and the unit tests. No imports on purpose.
 import { STATUS_VALUES } from "../applications.ts";
+import { TASK_PRIORITY_VALUES, TASK_STATUS_VALUES } from "../tasks.ts";
+import { EVENT_TYPE_VALUES } from "../events.ts";
+import { OFFSET_VALUES, SOURCE_TYPES, type SourceType } from "../reminders.ts";
+import { isTimeOnly, zonedInstant } from "../time.ts";
 export type Input = Record<string, string | undefined>;
 export type Errors = Record<string, string>;
 export type Parsed<T> = { ok: true; values: T } | { ok: false; errors: Errors };
@@ -155,4 +159,78 @@ export function parseRequirement(input: Input) {
 export function parseStatusChange(input: Input) {
   const c = new Collector(input);
   return c.result({ status: c.choice("status", "Status", STATUS_VALUES, true), note: c.text("note", "Note", 1000) });
+}
+
+// ---- Phase 7: tasks, events, reminders ------------------------------------------------------------------
+export function parseTask(input: Input) {
+  const c = new Collector(input);
+  const due_date = c.date("due_date", "Due date");
+  const due_time = clean(input.due_time) || null;
+  if (due_time && !isTimeOnly(due_time)) c.errors.due_time = "Time must look like 14:30.";
+  else if (due_time && !due_date) c.errors.due_time = "Set a due date to use a due time.";
+  const application_id = clean(input.application_id) || null;
+  if (application_id && !isUuid(application_id)) c.errors.application_id = "Choose a valid application.";
+  return c.result({
+    title: c.text("title", "Title", 300, true), description: c.text("description", "Description", 5000),
+    status: c.choice("status", "Status", TASK_STATUS_VALUES) ?? "todo", priority: c.choice("priority", "Priority", TASK_PRIORITY_VALUES) ?? "medium",
+    due_date, due_time: due_time && isTimeOnly(due_time) && due_date ? due_time : null, application_id,
+  });
+}
+
+/** Timed events convert the wall-clock input to an instant in the app timezone here, on the server. */
+export function parseEvent(input: Input, timeZone = "Asia/Karachi") {
+  const c = new Collector(input);
+  const all_day = ["on", "true", "1"].includes(clean(input.all_day));
+  const start_date = c.date("start_date", "Start date");
+  if (!start_date && !c.errors.start_date) c.errors.start_date = "Start date is required.";
+  const start_time = clean(input.start_time), end_time = clean(input.end_time);
+  const end_date = c.date("end_date", "End date");
+  const application_id = clean(input.application_id) || null;
+  if (application_id && !isUuid(application_id)) c.errors.application_id = "Choose a valid application.";
+  const common = {
+    title: c.text("title", "Title", 300, true), event_type: c.choice("event_type", "Category", EVENT_TYPE_VALUES) ?? "other",
+    location: c.text("location", "Location", 300), meeting_url: c.url("meeting_url", "Meeting link"), notes: c.text("notes", "Notes", 5000), application_id,
+  };
+  let times: { all_day: boolean; start_date: string | null; end_date: string | null; starts_at: string | null; ends_at: string | null } =
+    { all_day, start_date: null, end_date: null, starts_at: null, ends_at: null };
+  if (start_date) {
+    if (all_day) {
+      if (end_date && end_date < start_date) c.errors.end_date = "The end must not be before the start.";
+      times = { all_day: true, start_date, end_date: end_date && end_date !== start_date ? end_date : null, starts_at: null, ends_at: null };
+    } else {
+      if (!start_time) c.errors.start_time = "Start time is required (or choose all-day).";
+      else if (!isTimeOnly(start_time)) c.errors.start_time = "Time must look like 14:30.";
+      if (end_time && !isTimeOnly(end_time)) c.errors.end_time = "Time must look like 14:30.";
+      if (end_date && !end_time) c.errors.end_time = "Add an end time for the end date.";
+      if (!c.errors.start_time && !c.errors.end_time && !c.errors.end_date) {
+        const starts = zonedInstant(start_date, start_time, timeZone);
+        let ends: Date | null = null;
+        if (end_time) ends = zonedInstant(end_date ?? start_date, end_time, timeZone);
+        if (ends && ends < starts) c.errors.end_time = "The end must not be before the start.";
+        times = { all_day: false, start_date: null, end_date: null, starts_at: starts.toISOString(), ends_at: ends ? ends.toISOString() : null };
+      }
+    }
+  }
+  return c.result({ ...common, ...times });
+}
+
+export function parseReminder(input: Input, timeZone = "Asia/Karachi") {
+  const c = new Collector(input);
+  const source_type = clean(input.source_type) as SourceType;
+  const source_id = clean(input.source_id);
+  if (!(SOURCE_TYPES as readonly string[]).includes(source_type)) c.errors.source_type = "Choose what the reminder is for.";
+  if (!isUuid(source_id)) c.errors.source_id = "Choose what the reminder is for.";
+  const schedule = clean(input.schedule) === "custom" ? "custom" : "offset";
+  let offsets: number[] = [], remind_at: string | null = null;
+  if (schedule === "offset") {
+    offsets = [...new Set(clean(input.offsets).split(",").filter(Boolean).map(Number))];
+    if (offsets.length === 0) c.errors.offsets = "Choose at least one reminder time.";
+    else if (offsets.some((n) => !OFFSET_VALUES.includes(n))) c.errors.offsets = "Choose valid reminder times.";
+  } else {
+    const d = c.date("remind_date", "Date"), t = clean(input.remind_time) || "09:00";
+    if (!d && !c.errors.remind_date) c.errors.remind_date = "Date is required.";
+    if (!isTimeOnly(t)) c.errors.remind_time = "Time must look like 14:30.";
+    if (d && isTimeOnly(t)) remind_at = zonedInstant(d, t, timeZone).toISOString();
+  }
+  return c.result({ source_type, source_id, schedule, offsets, remind_at });
 }

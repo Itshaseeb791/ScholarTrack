@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Files, GraduationCap, History, Link2, ListChecks, NotebookText, Pencil, Unlink } from "lucide-react";
+import { ArrowRight, Bell, CalendarDays, CheckSquare, Files, GraduationCap, History, Link2, ListChecks, NotebookText, Pencil, Unlink } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader, Pill } from "@/components/ui-kit";
@@ -14,6 +14,11 @@ import { requireOwner } from "@/lib/auth/session";
 import { canTransition, effectiveDeadline, requirementsProgress, SCHOLARSHIP_OUTCOMES, statusLabel, STATUSES } from "@/lib/applications";
 import { deleteApplication, linkApplicationScholarship, setScholarshipOutcome, unlinkApplicationScholarship } from "@/lib/records/application-actions";
 import { getApplicationBundle, hasPhase6 } from "@/lib/records/application-queries";
+import { applicationPlanning, hasPhase7 } from "@/lib/records/planning-queries";
+import { ReminderPanel } from "@/components/records/reminder-panel";
+import { PriorityPill } from "@/components/records/planning-parts";
+import { eventTypeLabel } from "@/lib/events";
+import { timeInZone } from "@/lib/time";
 import { isUuid } from "@/lib/records/validate";
 import { daysUntil, remaining } from "@/lib/dashboard-logic";
 import { dateInZone, formatDateOnly, getTimezone, todayIn } from "@/lib/time";
@@ -34,6 +39,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const prog = requirementsProgress(requirements);
   const nextUp = requirements.filter((r) => !r.is_complete && r.due_date).sort((a, b) => a.due_date!.localeCompare(b.due_date!)).slice(0, 3);
   const dl = effectiveDeadline(app.application_deadline, app.program_deadline);
+  const phase7 = await hasPhase7(supabase);
+  const plan = phase7 ? await applicationPlanning(supabase, id, requirements.map((r) => r.id), tz) : null;
+  const reminderSources = [{ type: "application" as const, id, label: "Application deadline" }, ...requirements.filter((r) => r.due_date).map((r) => ({ type: "requirement" as const, id: r.id, label: `Requirement: ${r.title}` }))];
 
   return (
     <>
@@ -46,7 +54,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <StatusChanger applicationId={id} current={app.status} allowed={allowed} />
           <Link href={`/applications/${id}/edit`} className={buttonVariants({ variant: "outline", className: "h-11 sm:h-9" })}><Pencil aria-hidden="true" />Edit</Link>
           <DeleteButton action={deleteApplication.bind(null, id)} noun="application" name={`${app.university_name} · ${app.program_name}`}
-            impact={`This also deletes its ${requirements.length} requirement${requirements.length === 1 ? "" : "s"}, ${history.length} history entr${history.length === 1 ? "y" : "ies"} and ${linked.length} scholarship link${linked.length === 1 ? "" : "s"}. The university, program and scholarships are kept.`} />
+            impact={`This also deletes its ${requirements.length} requirement${requirements.length === 1 ? "" : "s"}, ${history.length} history entr${history.length === 1 ? "y" : "ies"}, ${linked.length} scholarship link${linked.length === 1 ? "" : "s"}${plan ? ` and ${plan.reminders.length} reminder${plan.reminders.length === 1 ? "" : "s"}` : ""}. The university, program and scholarships are kept. ${plan && (plan.tasks.length || plan.events.length) ? `It cannot be deleted while it still has ${plan.tasks.length} task(s) and ${plan.events.length} event(s): remove or unlink those first.` : ""}`} />
         </div>
       </div>
 
@@ -86,6 +94,30 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <CardHeader><h2 className="section-title flex items-center gap-2"><ListChecks className="size-5 text-emerald" aria-hidden="true" />Requirements</h2></CardHeader>
         <CardContent><RequirementsPanel applicationId={id} items={requirements} today={today} /></CardContent>
       </Card>
+
+      {plan && (
+        <Card className="mt-6">
+          <CardHeader><h2 className="section-title flex items-center gap-2"><CheckSquare className="size-5 text-emerald" aria-hidden="true" />Tasks &amp; events</h2></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/tasks/new?application=${id}`} className={buttonVariants({ variant: "outline", className: "h-11 sm:h-9" })}><CheckSquare aria-hidden="true" />Add task</Link>
+              <Link href={`/calendar/events/new?application=${id}`} className={buttonVariants({ variant: "outline", className: "h-11 sm:h-9" })}><CalendarDays aria-hidden="true" />Add event</Link>
+            </div>
+            {plan.tasks.length === 0 && plan.events.length === 0 && <p className="help-text">No tasks or events for this application yet.</p>}
+            <ul className="divide-y">
+              {plan.tasks.map((t) => <li key={t.id}><Link href={`/tasks/${t.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-primary"><span className={`flex items-center gap-2 text-sm font-medium ${t.status === "completed" ? "text-muted-foreground line-through" : ""}`}><CheckSquare className="size-4 text-emerald" aria-hidden="true" />{t.title}</span><span className="flex items-center gap-2 text-xs text-muted-foreground"><PriorityPill priority={t.priority} />{t.due_date ? formatDateOnly(t.due_date) : "No date"}</span></Link></li>)}
+              {plan.events.map((e) => <li key={e.id}><Link href={`/calendar/events/${e.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-primary"><span className="flex items-center gap-2 text-sm font-medium"><CalendarDays className="size-4 text-emerald" aria-hidden="true" />{e.title}</span><span className="text-xs text-muted-foreground">{eventTypeLabel(e.event_type)} · {e.all_day && e.start_date ? formatDateOnly(e.start_date) : e.starts_at ? `${formatDateOnly(dateInZone(e.starts_at, tz))} ${timeInZone(e.starts_at, tz)}` : ""}</span></Link></li>)}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {plan && (
+        <Card className="mt-6">
+          <CardHeader><h2 className="section-title flex items-center gap-2"><Bell className="size-5 text-emerald" aria-hidden="true" />Reminders</h2></CardHeader>
+          <CardContent><ReminderPanel type="application" sourceId={id} reminders={plan.reminders} sources={reminderSources} tz={tz} hasDate={!!dl.date} /></CardContent>
+        </Card>
+      )}
 
       <Card className="mt-6">
         <CardHeader><h2 className="section-title flex items-center gap-2"><GraduationCap className="size-5 text-emerald" aria-hidden="true" />Scholarships</h2></CardHeader>

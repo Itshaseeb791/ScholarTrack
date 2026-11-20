@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import type { FormState } from "@/lib/records/actions";
 
 export type FieldDef = {
-  name: string; label: string; type?: "text" | "url" | "date" | "number" | "select" | "textarea" | "checkbox" | "checks";
+  name: string; label: string; type?: "text" | "url" | "date" | "number" | "select" | "textarea" | "checkbox" | "checks" | "time";
   required?: boolean; placeholder?: string; hint?: string; maxLength?: number; wide?: boolean;
   options?: readonly (readonly [string, string])[]; empty?: string;
   groups?: { label: string; options: readonly (readonly [string, string])[] }[]; // select with <optgroup>s
@@ -98,7 +98,7 @@ export function RecordForm({ fields, action, initial = {}, cancelHref, submitLab
                   </select>
                 ) : f.type === "checkbox" ? null : (
                   <Input {...common} defaultValue={v} placeholder={f.placeholder} maxLength={f.maxLength ?? 500}
-                    type={f.type === "date" ? "date" : f.type === "number" ? "text" : "text"}
+                    type={f.type === "date" ? "date" : f.type === "time" ? "time" : "text"}
                     inputMode={f.type === "number" ? "decimal" : f.type === "url" ? "url" : undefined}
                     autoCapitalize={f.type === "url" ? "none" : undefined} autoCorrect={f.type === "url" ? "off" : undefined}
                     className="h-10 md:h-9"

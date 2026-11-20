@@ -1,6 +1,8 @@
 import type { FieldDef } from "@/components/records/record-form";
 import { CURRENCIES, DEGREE_TYPES, FUNDING_TYPES_BASE, FUNDING_TYPES_EXTRA, UNI_TYPES } from "./validate";
 import { STARTER_REQUIREMENTS, STATUSES } from "../applications";
+import { TASK_PRIORITIES, TASK_STATUSES } from "../tasks";
+import { EVENT_TYPES } from "../events";
 
 const currencyOptions = CURRENCIES.map((c) => [c, c] as const);
 
@@ -60,4 +62,29 @@ export const applicationFields = (
   { name: "decision_date", label: "Decision date", type: "date" },
   ...(creating ? [{ name: "starter_requirements", label: "Starter checklist (optional, edit or delete later)", type: "checks", wide: true, options: STARTER_REQUIREMENTS.map((x) => [x, x] as const) } as FieldDef] : []),
   { name: "notes", label: "Notes", type: "textarea", placeholder: "Anything specific to this application" },
+];
+
+type Opts = readonly (readonly [string, string])[];
+export const taskFields = (applications: Opts): FieldDef[] => [
+  { name: "title", label: "Task", required: true, placeholder: "e.g. Ask Prof. Khan for a recommendation letter", wide: true },
+  { name: "priority", label: "Priority", type: "select", options: TASK_PRIORITIES, empty: "Medium" },
+  { name: "status", label: "Status", type: "select", options: TASK_STATUSES.slice(1), empty: "To do" },
+  { name: "due_date", label: "Due date", type: "date" },
+  { name: "due_time", label: "Due time (optional)", type: "time", hint: "Needs a due date. Uses the app timezone (Asia/Karachi)." },
+  { name: "application_id", label: "Related application (optional)", type: "select", options: applications, empty: "Not linked to an application", wide: true },
+  { name: "description", label: "Description", type: "textarea", placeholder: "Details, links, next steps" },
+];
+
+export const eventFields = (applications: Opts): FieldDef[] => [
+  { name: "title", label: "Title", required: true, placeholder: "e.g. TUM admission interview", wide: true },
+  { name: "event_type", label: "Category", type: "select", options: EVENT_TYPES.slice(0, -1), empty: "Other" },
+  { name: "all_day", label: "All-day event (ignores the times below)", type: "checkbox" },
+  { name: "start_date", label: "Start date", type: "date", required: true },
+  { name: "start_time", label: "Start time", type: "time", hint: "Required unless all-day. Asia/Karachi." },
+  { name: "end_date", label: "End date (optional)", type: "date" },
+  { name: "end_time", label: "End time (optional)", type: "time" },
+  { name: "location", label: "Location", placeholder: "Room, address or city" },
+  { name: "meeting_url", label: "Meeting link", type: "url", placeholder: "https://…" },
+  { name: "application_id", label: "Related application (optional)", type: "select", options: applications, empty: "Not linked to an application", wide: true },
+  { name: "notes", label: "Notes", type: "textarea" },
 ];
