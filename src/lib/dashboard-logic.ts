@@ -1,6 +1,7 @@
 // Pure dashboard calculations. Dates are YYYY-MM-DD calendar days; "today" comes from the caller (see time.ts).
-import { dateInZone, daysBetween, DEFAULT_TIMEZONE } from "./time";
-import { countByGroup, GROUPS, isPending } from "./applications";
+import { daysBetween, DEFAULT_TIMEZONE } from "./time";
+import { countByGroup, GROUPS } from "./applications";
+import { buildDeadlineItems, type Kind } from "./deadlines";
 export type Row = Record<string, string | null>;
 export type Deadline = { id: string; title: string; date: string; source: "Program" | "Scholarship" | "Application" | "Requirement" | "Task" | "Event"; href: string };
 
@@ -15,34 +16,19 @@ export const remaining = (d: number) => (d < 0 ? `${-d} day${d === -1 ? "" : "s"
 export const urgency = (d: number) => (d < 0 ? "overdue" : d <= 3 ? "urgent" : "normal") as "overdue" | "urgent" | "normal";
 export const label = (s: string) => s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
+const SOURCE: Record<Kind, Deadline["source"]> = { program: "Program", scholarship: "Scholarship", application: "Application", requirement: "Requirement", task: "Task", event: "Event" };
+
+/** Upcoming deadlines for the dashboard. Dates come from the shared deadline model (deadlines.ts) so the dashboard,
+ *  calendar and Deadline Center cannot disagree; this only applies the dashboard's "from today on" window. */
 export function buildDeadlines(
   src: { programs: Row[]; scholarships: Row[]; tasks: Row[]; events: Row[]; applications?: Row[]; requirements?: Row[]; coveredPrograms?: string[] }, today: string, timeZone = DEFAULT_TIMEZONE,
 ): Deadline[] {
-  const out: Deadline[] = [];
-  // A program that has an application is tracked through that application (its own deadline override, status and
-  // checklist), so its general program deadline is not listed a second time.
-  const covered = new Set(src.coveredPrograms ?? []);
-  // Only applications still being prepared have an actionable deadline; submitted/decided/withdrawn ones are closed.
-  const pendingApps = new Set<string>();
-  for (const r of src.applications ?? []) if (isPending(r.status ?? "")) {
-    pendingApps.add(r.id!);
-    if (r.effective_deadline && r.effective_deadline >= today)
-      out.push({ id: "a" + r.id, title: `${r.university_name} · ${r.program_name}`, date: r.effective_deadline, source: "Application", href: "/applications/" + r.id });
-  }
-  for (const r of src.requirements ?? []) if (r.due_date && r.due_date >= today && pendingApps.has(r.application_id ?? ""))
-    out.push({ id: "r" + r.id, title: r.title!, date: r.due_date, source: "Requirement", href: "/applications/" + r.application_id });
-  for (const r of src.programs) if (r.application_deadline && r.application_deadline >= today && !covered.has(r.id!))
-    out.push({ id: "p" + r.id, title: r.name!, date: r.application_deadline, source: "Program", href: "/programs/" + r.id });
-  for (const r of src.scholarships) if (r.application_deadline && r.application_deadline >= today)
-    out.push({ id: "s" + r.id, title: r.name!, date: r.application_deadline, source: "Scholarship", href: "/scholarships/" + r.id });
-  // Open tasks stay listed once overdue; finished work is not a deadline.
-  for (const r of src.tasks) if (r.due_date && ["todo", "in_progress"].includes(r.status ?? ""))
-    out.push({ id: "t" + r.id, title: r.title!, date: r.due_date, source: "Task", href: "/tasks" });
-  for (const r of src.events) {
-    const day = r.starts_at ? dateInZone(r.starts_at, timeZone) : null; // timestamp -> local calendar day
-    if (day && day >= today) out.push({ id: "e" + r.id, title: r.title!, date: day, source: "Event", href: "/calendar" });
-  }
-  return out.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
+  const items = buildDeadlineItems(src, { timeZone });
+  return items
+    // Open tasks stay listed once overdue; every other kind only from today on.
+    .filter((i) => i.date !== null && (i.kind === "task" || i.date >= today))
+    .map((i): Deadline => ({ id: i.id, title: i.title, date: i.date!, source: SOURCE[i.kind], href: i.href }))
+    .sort((x, y) => x.date.localeCompare(y.date) || x.title.localeCompare(y.title));
 }
 
 export function buildStats(applicationStatuses: string[], universities: number, scholarships: number, deadlines: Deadline[], today: string) {
@@ -59,6 +45,6 @@ export function groupTasks(tasks: Row[], today: string) {
   return {
     overdue: open.filter((t) => t.due_date && t.due_date < today),
     today: open.filter((t) => t.due_date === today),
-    high: open.filter((t) => t.priority === "high"),
+    high: open.filter((t) => ["high", "urgent"].includes(t.priority ?? "")),
   };
 }

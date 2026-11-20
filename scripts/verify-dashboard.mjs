@@ -19,7 +19,8 @@ function load(file, mocks = {}) {
 }
 const time = load("lib/time.ts");
 const applications = load("lib/applications.ts", { "./time.ts": time });
-const logic = load("lib/dashboard-logic.ts", { "./time": time, "./applications": applications });
+const deadlinesMod = load("lib/deadlines.ts", { "./time.ts": time, "./applications.ts": applications });
+const logic = load("lib/dashboard-logic.ts", { "./time": time, "./applications": applications, "./deadlines": deadlinesMod });
 const today = "2026-11-13";
 
 test("deadlines merge all sources, sort ascending, keep overdue tasks only", () => {
@@ -65,11 +66,18 @@ test("application deadlines: override wins, program deadline not duplicated, clo
 });
 
 test("task groups", () => {
-  const g = logic.groupTasks([
+  const tasks = [
     { id: "a", status: "todo", due_date: "2026-11-12", priority: "low" }, { id: "b", status: "in_progress", due_date: today, priority: "high" },
     { id: "c", status: "completed", due_date: "2026-11-01", priority: "high" }, { id: "d", status: "todo", due_date: null, priority: "medium" },
-  ], today);
-  assert.deepEqual([g.overdue.map((t) => t.id), g.today.map((t) => t.id), g.high.map((t) => t.id)], [["a"], ["b"], ["b"]]);
+    { id: "e", status: "todo", due_date: null, priority: "urgent" }, { id: "f", status: "completed", priority: "urgent" },
+    { id: "g", status: "todo", due_date: null, priority: "high" }, { id: "h", status: "in_progress", due_date: today, priority: "urgent" },
+    { id: "i", status: "cancelled", priority: "high" }, { id: "j", status: "cancelled", priority: "urgent" },
+  ];
+  const before = JSON.stringify(tasks);
+  const g = logic.groupTasks(tasks, today);
+  assert.deepEqual([g.overdue.map((t) => t.id), g.today.map((t) => t.id), g.high.map((t) => t.id)], [["a"], ["b", "h"], ["b", "e", "g", "h"]]);
+  assert.equal(new Set(g.high.map((t) => t.id)).size, g.high.length, "each High/Urgent task appears once in the priority group");
+  assert.equal(JSON.stringify(tasks), before, "grouping does not alter the input tasks");
 });
 
 test("timezone: UTC instants map to the Asia/Karachi calendar day at midnight boundaries", () => {

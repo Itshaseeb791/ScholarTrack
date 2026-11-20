@@ -1,6 +1,7 @@
 import { GraduationCap } from "lucide-react";
 import { Suspense } from "react";
 import { AppNav, StaticNav } from "@/components/app-nav";
+import { BellLink, ReminderBell } from "@/components/reminder-bell";
 import { SessionGuard } from "@/components/session-guard";
 import { SignOutButton } from "@/components/sign-out-button";
 
@@ -23,7 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-5xl items-center gap-3">
             <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground md:hidden"><GraduationCap className="size-5" aria-hidden="true" /></span>
             <p className="font-semibold tracking-tight md:hidden">ScholarTrack</p>
-            <div className="ml-auto flex items-center gap-3"><SignOutButton /></div>
+            <div className="ml-auto flex items-center gap-2"><Suspense fallback={<BellLink />}><ReminderBell /></Suspense><SignOutButton /></div>
           </div>
         </header>
         <main id="main" className="mx-auto max-w-5xl px-5 py-6 sm:px-8 md:px-10 md:py-10">{children}</main>

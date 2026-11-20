@@ -1,4 +1,4 @@
-import { CalendarDays, CheckSquare, Files, GraduationCap, LayoutDashboard, MoreHorizontal, School, Settings, FolderOpen, BookOpen } from "lucide-react";
+import { CalendarDays, CheckSquare, Files, GraduationCap, LayoutDashboard, MoreHorizontal, School, Settings, FolderOpen, BookOpen, CalendarClock, Bell } from "lucide-react";
 
 export const routes = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -8,6 +8,8 @@ export const routes = [
   { href: "/applications", label: "Applications", icon: Files },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
+  { href: "/deadlines", label: "Deadlines", icon: CalendarClock },
+  { href: "/reminders", label: "Reminders", icon: Bell },
   { href: "/documents", label: "Documents", icon: FolderOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;

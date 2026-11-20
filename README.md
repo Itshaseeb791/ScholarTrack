@@ -340,3 +340,11 @@ Routes: `/applications` (list, search, filters), `/applications/new`, `/applicat
 - **Migration:** `supabase/migrations/20261114000100_phase6_applications.sql` has been applied. Without it the Applications pages show a setup notice and the dashboard keeps its Phase 5 behaviour.
 - Tests: `npm test`, `node scripts/verify-phase6-live.mjs` (live, self-cleaning, needs the migration), `PWA_TEST_ORIGIN=http://localhost:3100 node scripts/verify-phase6-ui.mjs`.
 - Details and current verification status: `docs/phase-6-*.md`.
+
+## Phase 7 — Calendar, tasks, deadlines and reminders
+
+Routes: `/calendar` (month/week/day/agenda, events under `/calendar/events/...`), `/tasks`, `/deadlines`, `/reminders`; a bell in the header shows due reminders and the dashboard has a "This week" strip. Dates from programs, scholarships, applications, requirements, tasks and events are aggregated by `src/lib/deadlines.ts`, never copied.
+
+- **Migration:** `supabase/migrations/20261115000100_phase7_planning.sql` (task due time / completion time / urgent priority, all-day events, reminder sources and schedule). Already present on the configured Supabase project and verified through live and browser checks on November 20–21, 2026; no migration was applied in that resumption. Before the migration is applied to a different project, the new pages show a setup notice and the dashboard keeps working. Review the target environment before any schema change.
+- Tests: `npm test`, `node scripts/verify-phase7-live.mjs` (live, self-cleaning, needs the migration), `PWA_TEST_ORIGIN=http://localhost:3100 node scripts/verify-phase7-ui.mjs`.
+- Reminders are in-app only (Reminder Center, dashboard, bell). Web Push is not implemented; see `docs/phase-7-audit.md` for the feasibility analysis. Details and verification status: `docs/phase-7-*.md`.

@@ -1,9 +1,13 @@
 import Link from "next/link";
-import { CalendarClock, Files, GraduationCap, Hourglass, Inbox, ListChecks, School, Send } from "lucide-react";
+import { Bell, CalendarClock, CalendarDays, Files, GraduationCap, Hourglass, Inbox, ListChecks, School, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, IconTile, PageHeader, Pill, type Tone } from "@/components/ui-kit";
 import { requireOwner } from "@/lib/auth/session";
 import { loadDashboard } from "@/lib/dashboard";
+import { loadPlanning } from "@/lib/dashboard-planning";
+import { describeWhen, STATE_META } from "@/components/records/reminder-panel";
+import { reminderState } from "@/lib/reminders";
+import { getTimezone } from "@/lib/time";
 import { daysUntil, remaining, urgency, type Row } from "@/lib/dashboard-logic";
 import { STATUSES, statusLabel } from "@/lib/applications";
 import { statusTone } from "@/components/records/application-parts";
@@ -33,7 +37,7 @@ function TaskList({ title, tone, tasks, today, empty }: { title: string; tone: T
             return (
               <li key={t.id} className="flex min-h-10 items-center justify-between gap-3 rounded-lg px-2 text-sm odd:bg-muted/50">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className={`size-2 shrink-0 rounded-full ${t.priority === "high" ? "bg-danger" : t.priority === "medium" ? "bg-warning" : "bg-emerald"}`} aria-hidden="true" />
+                  <span className={`size-2 shrink-0 rounded-full ${["high", "urgent"].includes(t.priority ?? "") ? "bg-danger" : t.priority === "medium" ? "bg-warning" : "bg-emerald"}`} aria-hidden="true" />
                   <span className="truncate">{t.title}</span>
                 </span>
                 {d !== null && <Pill tone={urgencyTone[urgency(d)]}>{remaining(d)}</Pill>}
@@ -49,6 +53,8 @@ function TaskList({ title, tone, tasks, today, empty }: { title: string; tone: T
 export default async function Page() {
   const { supabase } = await requireOwner();
   const { today, stats, deadlines, tasks, recent, statusCounts } = await loadDashboard(supabase);
+  const tz = getTimezone();
+  const planning = await loadPlanning(supabase, today, tz, deadlines);
   const cards = [
     { name: "Universities", value: stats.universities, icon: School, tone: "brand" },
     { name: "Scholarships", value: stats.scholarships, icon: GraduationCap, tone: "brand" },
@@ -72,6 +78,53 @@ export default async function Page() {
       </dl>
 
       <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-6 lg:grid-cols-2">
+        <Card className="lg:col-span-2">
+          <CardHeader><SectionTitle icon={CalendarClock}>This week</SectionTitle></CardHeader>
+          <CardContent>
+            <ul className="grid grid-cols-7 gap-1.5" aria-label="Next 7 days">
+              {planning.week.map((w) => (
+                <li key={w.date}><Link href={`/calendar?view=day&date=${w.date}`} aria-label={`${formatDateOnly(w.date, { weekday: "long", day: "numeric", month: "long" })}, ${w.count} item${w.count === 1 ? "" : "s"}`}
+                  className={`flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 ${w.date === today ? "border-primary bg-accent" : "bg-card"}`}>
+                  <span className="text-[10px] font-medium uppercase text-muted-foreground">{formatDateOnly(w.date, { weekday: "short" })}</span>
+                  <span className="text-base font-semibold tabular-nums">{formatDateOnly(w.date, { day: "numeric" })}</span>
+                  <span className={`text-[11px] tabular-nums ${w.count ? "font-semibold text-primary" : "text-muted-foreground"}`}>{w.count || "–"}</span></Link></li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm"><Link href="/calendar" className="font-medium text-primary hover:underline">Open calendar</Link><Link href="/deadlines" className="font-medium text-primary hover:underline">All deadlines</Link></div>
+          </CardContent>
+        </Card>
+
+        {planning.enabled && (
+          <>
+            <Card>
+              <CardHeader><SectionTitle icon={Bell} count={planning.dueCount}>Reminders</SectionTitle></CardHeader>
+              <CardContent>
+                {planning.dueReminders.length === 0 ? <p className="help-text">Nothing due right now. <Link href="/reminders" className="font-medium text-primary underline">Reminder Center</Link></p> : (
+                  <ul className="divide-y">
+                    {planning.dueReminders.map((r) => {
+                      const st = reminderState(r, new Date(), tz);
+                      return <li key={r.id}><Link href={r.href ?? "/reminders"} className="-mx-2 flex min-h-14 items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{r.sourceTitle}</span><span className="text-xs text-muted-foreground">{describeWhen(r, tz)}</span></span><Pill tone={STATE_META[st].tone}>{STATE_META[st].label}</Pill></Link></li>;
+                    })}
+                  </ul>
+                )}
+                {planning.dueCount > planning.dueReminders.length && <Link href="/reminders" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">See all {planning.dueCount} due</Link>}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><SectionTitle icon={CalendarDays}>Next event</SectionTitle></CardHeader>
+              <CardContent>
+                {!planning.nextEvent ? <p className="help-text">No upcoming events. <Link href="/calendar/events/new" className="font-medium text-primary underline">Add one</Link></p> : (
+                  <Link href={`/calendar/events/${planning.nextEvent.id}`} className="-mx-2 flex min-h-14 items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted">
+                    <IconTile icon={CalendarDays} tone="danger" />
+                    <span className="min-w-0"><span className="block truncate text-sm font-medium">{planning.nextEvent.title}</span>
+                      <span className="text-xs text-muted-foreground">{formatDateOnly(planning.nextEvent.date, { weekday: "short", day: "numeric", month: "short" })}{planning.nextEvent.time ? ` · ${planning.nextEvent.time}` : " · all day"}{planning.nextEvent.location ? ` · ${planning.nextEvent.location}` : ""}</span></span>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
         <Card>
           <CardHeader><SectionTitle icon={CalendarClock} count={deadlines.length}>Upcoming deadlines</SectionTitle></CardHeader>
           <CardContent>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GraduationCap, Pencil, School } from "lucide-react";
+import { Bell, GraduationCap, Pencil, School } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader, Pill } from "@/components/ui-kit";
@@ -10,6 +10,8 @@ import { requireOwner } from "@/lib/auth/session";
 import { deleteProgram } from "@/lib/records/actions";
 import { hasExtras } from "@/lib/records/queries";
 import { hasPhase6 } from "@/lib/records/application-queries";
+import { hasPhase7, remindersFor } from "@/lib/records/planning-queries";
+import { ReminderPanel } from "@/components/records/reminder-panel";
 import { AddButton } from "@/components/records/parts";
 import { StatusPill } from "@/components/records/application-parts";
 import { isUuid } from "@/lib/records/validate";
@@ -29,6 +31,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const today = todayIn(getTimezone());
   const extras = await hasExtras(supabase);
   const phase6 = await hasPhase6(supabase);
+  const phase7 = await hasPhase7(supabase);
+  const reminders = phase7 ? await remindersFor(supabase, "program", id, getTimezone()) : [];
   const appRows = phase6 ? ((await supabase.from("application_overview").select("id,status,intake,effective_deadline").eq("program_id", id).order("created_at", { ascending: false }).limit(20)).data ?? []) : [];
   const [{ count: apps }, links] = await Promise.all([
     supabase.from("applications").select("id", { count: "exact", head: true }).eq("program_id", id),
@@ -69,6 +73,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               ))}</ul>
             )}
           </CardContent>
+        </Card>
+      )}
+      {phase7 && (
+        <Card className="mt-6">
+          <CardHeader><h2 className="section-title flex items-center gap-2"><Bell className="size-5 text-emerald" aria-hidden="true" />Reminders</h2></CardHeader>
+          <CardContent><ReminderPanel type="program" sourceId={id} reminders={reminders} tz={getTimezone()} hasDate={!!p.application_deadline} /></CardContent>
         </Card>
       )}
       <Card className="mt-6"><CardHeader><h2 className="section-title">Linked scholarships</h2></CardHeader><CardContent>

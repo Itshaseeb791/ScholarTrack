@@ -50,11 +50,11 @@ export function ProgressBar({ done, total, label = "Requirements" }: { done: num
 }
 
 /** Shown instead of the module when the Phase 6 migration has not been applied yet. */
-export function SetupNotice() {
+export function SetupNotice({ what = "Application tracking", file = "20261114000100_phase6_applications.sql" }: { what?: string; file?: string } = {}) {
   return (
     <Card className="mt-6">
       <EmptyState icon={Database} title="One database step is pending">
-        Application tracking needs the Phase 6 migration. Open <code>supabase/migrations/20261114000100_phase6_applications.sql</code>, paste it into the Supabase SQL Editor and run it, then reload this page.
+        {what} needs a database migration. Open <code>supabase/migrations/{file}</code>, paste it into the Supabase SQL Editor and run it, then reload this page.
       </EmptyState>
     </Card>
   );
